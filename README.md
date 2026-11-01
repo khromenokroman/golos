@@ -43,6 +43,23 @@ sudo install -m 755 build/golos /usr/local/bin/golos
 ./scripts/setup_hotkey.sh
 ```
 
+### Печать под GNOME Wayland
+
+Печать выполняется через внешний бэкенд (переменная `GOLOS_TYPER`
+перекрывает выбор): **dotool** (uinput, работает везде, рекомендуется),
+`wtype` (wlroots-композиторы), `xdotool` (X11 и XWayland-окна).
+
+GNOME Wayland не поддерживает ни протокол `wtype`, ни XTEST в нативные
+окна, поэтому нужен dotool:
+
+```bash
+git clone https://git.sr.ht/~geb/dotool && cd dotool
+./build.sh && sudo ./build.sh install          # бинарник + udev-правило
+sudo usermod -aG input "$USER"                 # доступ к /dev/uinput
+# перелогиниться, затем проверить автоматическим e2e-тестом:
+tests/typing_e2e.sh
+```
+
 Сборка пакета: `cpack -G DEB` в каталоге сборки, результат —
 `golos_<версия>_amd64.deb`.
 
