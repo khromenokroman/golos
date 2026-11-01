@@ -52,9 +52,14 @@ const char* find_dotool()
 /**
  * @brief Печатает текст через dotool (uinput, работает везде, включая GNOME Wayland).
  * Команды протокола подаются на stdin: "type <текст>".
+ * Раскладка по умолчанию для поиска клавиш: ru,us (перекрывается
+ * переменными DOTOOL_XKB_LAYOUT / XKB_DEFAULT_LAYOUT).
  */
 bool type_dotool(const std::string& text)
 {
+    if (std::getenv("DOTOOL_XKB_LAYOUT") == nullptr && std::getenv("XKB_DEFAULT_LAYOUT") == nullptr) {
+        setenv("DOTOOL_XKB_LAYOUT", "ru,us", 0);
+    }
     const std::string cmd = std::string(find_dotool()) + " 2>/dev/null";
     FILE* pipe = popen(cmd.c_str(), "w");
     if (!pipe) {

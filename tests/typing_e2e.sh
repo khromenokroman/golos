@@ -19,7 +19,7 @@ python3 tests/atspi_receiver.py "$RESULT" > /dev/null 2>&1 &
 recv=$!
 sleep 2
 
-echo "type $MARKER" | dotool
+echo "type $MARKER" | DOTOOL_XKB_LAYOUT="${DOTOOL_XKB_LAYOUT:-ru,us}" dotool
 sleep 4
 
 kill "$recv" 2>/dev/null
