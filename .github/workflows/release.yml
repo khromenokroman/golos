@@ -25,7 +25,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates git build-essential cmake dpkg-dev file curl golang-go libxkbcommon-dev
+            ca-certificates git build-essential cmake dpkg-dev file curl pkg-config golang-go libxkbcommon-dev
 
       - name: Checkout
         uses: actions/checkout@v7
