@@ -15,6 +15,14 @@ cmake --build build -j
 
 ## Установка
 
+Из собранного пакета (Debian 13):
+
+```bash
+sudo apt install ./golos_*-debian13.deb
+```
+
+Или из исходников:
+
 ```bash
 ./scripts/download_model.sh        # модель small (~460 МБ), или tiny|base|medium|large
 sudo apt install wtype             # Wayland — печать в окна
@@ -22,6 +30,10 @@ sudo apt install xdotool           # альтернатива для X11
 sudo install -m 755 build/golos /usr/local/bin/golos
 ./scripts/setup_hotkey.sh          # Ctrl+Alt+Space -> golos toggle
 ```
+
+Сборка пакета: `cpack -G DEB` в каталоге сборки. CI собирает пакет и
+проверяет установку в чистом debian:trixie на каждый пуш, релиз
+публикуется по тегу `v*`.
 
 ## Использование
 
