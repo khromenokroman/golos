@@ -1,0 +1,8 @@
+/build/
+/models/
+/.idea/
+/cmake-build-debug/
+*.wav
+*.o
+compile_commands.json
+CLAUDE.md
