@@ -40,8 +40,8 @@ const char* find_dotool()
     if (env && *env && access(env, X_OK) == 0) {
         return env;
     }
-#ifdef GOLOS_LIB_DIR
-    static const std::string bundled = std::string(GOLOS_LIB_DIR) + "/dotool";
+#ifdef GOLOS_BIN_DIR
+    static const std::string bundled = std::string(GOLOS_BIN_DIR) + "/dotool";
     if (access(bundled.c_str(), X_OK) == 0) {
         return bundled.c_str();
     }

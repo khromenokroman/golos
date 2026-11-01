@@ -44,7 +44,7 @@ target_link_libraries(golos_core PUBLIC whisper)
 
 add_executable(golos src/main.cpp)
 target_link_libraries(golos PRIVATE golos_core)
-target_compile_definitions(golos PRIVATE GOLOS_LIB_DIR="${CMAKE_INSTALL_FULL_LIBDIR}/golos")
+target_compile_definitions(golos PRIVATE GOLOS_BIN_DIR="${CMAKE_INSTALL_FULL_BINDIR}")
 target_compile_options(golos_core PRIVATE -Wall -Wextra)
 target_compile_options(golos PRIVATE -Wall -Wextra)
 
@@ -99,7 +99,7 @@ install(TARGETS golos RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT golo
 install(PROGRAMS scripts/download_model.sh scripts/setup_hotkey.sh
         DESTINATION ${CMAKE_INSTALL_DATADIR}/golos COMPONENT golos)
 install(FILES ${CMAKE_BINARY_DIR}/dotool
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/golos COMPONENT golos OPTIONAL)
+        DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT golos OPTIONAL)
 install(FILES cmake/80-golos-uinput.rules
         DESTINATION lib/udev/rules.d COMPONENT golos)
 

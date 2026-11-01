@@ -52,7 +52,8 @@ sudo install -m 755 build/golos /usr/local/bin/golos
 
 GNOME Wayland не поддерживает ни протокол `wtype`, ни XTEST в нативные
 окна, поэтому нужен dotool. Пакет `golos` ставит его сам
-(`/usr/lib/golos/dotool`) вместе с udev-правилом для `/dev/uinput`;
+(`/usr/bin/dotool`, файл в PATH, конфликт с будущим пакетом dotool из
+Debian будет явным) вместе с udev-правилом для `/dev/uinput`;
 после установки остаётся одно действие:
 
 ```bash
