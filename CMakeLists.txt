@@ -60,7 +60,7 @@ if(GOLOS_BUNDLE_DOTOOL)
         FetchContent_Populate(dotool)
         add_custom_command(
             OUTPUT ${CMAKE_BINARY_DIR}/dotool
-            COMMAND ${GO_EXECUTABLE} build -C ${dotool_SOURCE_DIR} -o ${CMAKE_BINARY_DIR}/dotool .
+            COMMAND ${GO_EXECUTABLE} -C ${dotool_SOURCE_DIR} build -buildvcs=false -o ${CMAKE_BINARY_DIR}/dotool .
             DEPENDS ${dotool_SOURCE_DIR}/dotool.go
             COMMENT "Сборка dotool"
         )
