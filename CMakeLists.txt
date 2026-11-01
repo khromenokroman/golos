@@ -31,16 +31,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(whisper)
 
-add_executable(golos
-    src/main.cpp
+add_library(golos_core STATIC
     src/recorder.cpp
     src/transcriber.cpp
     src/typer.cpp
     src/wav.cpp
 )
 
-target_include_directories(golos PRIVATE ${miniaudio_SOURCE_DIR})
-target_link_libraries(golos PRIVATE whisper)
+target_include_directories(golos_core PUBLIC src ${miniaudio_SOURCE_DIR})
+target_link_libraries(golos_core PUBLIC whisper)
+
+add_executable(golos src/main.cpp)
+target_link_libraries(golos PRIVATE golos_core)
+target_compile_options(golos_core PRIVATE -Wall -Wextra)
 target_compile_options(golos PRIVATE -Wall -Wextra)
 
 option(GOLOS_BUILD_TESTS "Собирать тесты" ON)
@@ -59,10 +62,8 @@ if(GOLOS_BUILD_TESTS)
     add_executable(golos_tests
         tests/test_wav.cpp
         tests/test_text_util.cpp
-        src/wav.cpp
     )
-    target_include_directories(golos_tests PRIVATE src)
-    target_link_libraries(golos_tests PRIVATE gtest_main)
+    target_link_libraries(golos_tests PRIVATE golos_core gtest_main)
 
     include(GoogleTest)
     gtest_discover_tests(golos_tests)
