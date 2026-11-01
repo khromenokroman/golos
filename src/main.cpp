@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -70,6 +71,22 @@ std::string wav_path()
 std::string log_path()
 {
     return state_dir() + "/golos.log";
+}
+std::string toggle_log_path()
+{
+    return state_dir() + "/toggle.log";
+}
+
+void log_line(const std::string& message)
+{
+    std::error_code ec;
+    std::filesystem::create_directories(state_dir(), ec);
+    std::ofstream f(toggle_log_path(), std::ios::app);
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t t = std::chrono::system_clock::to_time_t(now);
+    char buf[32] = {0};
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
+    f << buf << " " << message << '\n';
 }
 
 pid_t read_pid()
@@ -197,12 +214,15 @@ int transcribe_and_type(const Options& opts)
     std::string text = trim(transcriber.transcribe(samples, opts.lang));
     if (text.empty()) {
         std::cerr << "golos: речь не распознана\n";
+        log_line("речь не распознана");
         return 1;
     }
 
     std::cout << text << '\n';
+    log_line("распознано: " + text);
     if (!opts.no_type && !type_text(text)) {
         std::cerr << "golos: не удалось напечатать текст, установите wtype (Wayland) или xdotool (X11)\n";
+        log_line("ошибка печати текста");
         return 1;
     }
     return 0;
@@ -214,6 +234,7 @@ int cmd_end(const Options& opts)
     if (!pid_alive(pid)) {
         std::filesystem::remove(pid_path());
         std::cerr << "golos: запись не идёт\n";
+        log_line("end: запись не идёт");
         return 1;
     }
 
