@@ -20,6 +20,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniaudio)
 
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
@@ -68,3 +69,20 @@ if(GOLOS_BUILD_TESTS)
     include(GoogleTest)
     gtest_discover_tests(golos_tests)
 endif()
+
+include(GNUInstallDirs)
+install(TARGETS golos RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT golos)
+install(PROGRAMS scripts/download_model.sh scripts/setup_hotkey.sh
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/golos COMPONENT golos)
+
+set(CPACK_GENERATOR DEB)
+set(CPACK_PACKAGE_VENDOR "khromenokroman")
+set(CPACK_PACKAGE_CONTACT "khromenokroman")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Диктовка речи в текст по горячей клавише (Whisper)")
+set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libgomp1")
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "wtype, xdotool")
+set(CPACK_DEB_COMPONENT_INSTALL ON)
+set(CPACK_COMPONENTS_ALL golos)
+set(CPACK_DEBIAN_GOLOS_PACKAGE_NAME "golos")
+include(CPack)
