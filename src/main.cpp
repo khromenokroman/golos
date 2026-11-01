@@ -29,7 +29,7 @@ struct Options {
     std::string prompt;
     bool no_type = false;
     bool keep_wav = false;
-    double stream_interval = 3.0;
+    double stream_interval = 2.0;
 };
 
 void on_signal(int)
@@ -340,7 +340,7 @@ void usage()
                      ")\n"
                      "  --lang CODE    язык: ru, en; пусто — автоопределение\n"
                      "  --prompt TEXT  начальный промпт Whisper (англ. слова -> латиница)\n"
-                     "  --stream-interval SEC  интервал потоковой транскрибации (по умолчанию 3)\n"
+                     "  --stream-interval SEC  интервал потоковой транскрибации (по умолчанию 2)\n"
                      "  --no-type      не печатать в активное окно, только в stdout\n"
                      "  --keep-wav     не удалять WAV после распознавания\n";
 }
