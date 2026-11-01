@@ -52,7 +52,7 @@ jobs:
         working-directory: build
         run: |
           cpack -G DEB
-          for f in *.deb; do mv "$f" "${f%.deb}-${{ matrix.distro }}.deb"; done
+          ls -1 *.deb
           dpkg-deb -I *.deb
 
       - name: Upload DEB artifact
