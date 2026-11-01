@@ -18,7 +18,8 @@ Transcriber::~Transcriber()
     }
 }
 
-std::string Transcriber::transcribe(const std::vector<float>& samples, const std::string& lang)
+std::string Transcriber::transcribe(const std::vector<float>& samples, const std::string& lang,
+                                    const std::string& prompt)
 {
     if (!m_ctx) {
         return {};
@@ -31,6 +32,7 @@ std::string Transcriber::transcribe(const std::vector<float>& samples, const std
     params.n_threads = std::min<unsigned>(8, std::thread::hardware_concurrency());
     params.no_timestamps = true;
     params.language = lang.empty() ? nullptr : lang.c_str();
+    params.initial_prompt = prompt.empty() ? nullptr : prompt.c_str();
 
     if (whisper_full(m_ctx, params, samples.data(), static_cast<int>(samples.size())) != 0) {
         return {};

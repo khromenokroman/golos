@@ -55,6 +55,12 @@ bool Recorder::save_wav(const std::string& path) const
     return wav_write(path, m_samples, m_sample_rate);
 }
 
+std::vector<float> Recorder::snapshot() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_samples;
+}
+
 void Recorder::capture_callback(ma_device* device, void* /*output*/, const void* input, std::uint32_t frame_count)
 {
     auto* self = static_cast<Recorder*>(device->pUserData);

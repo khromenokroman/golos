@@ -37,6 +37,11 @@ class Recorder
      */
     bool save_wav(const std::string& path) const;
 
+    /**
+     * @brief Возвращает копию накопленных отсчётов (для потоковой транскрибации).
+     */
+    std::vector<float> snapshot() const;
+
     std::uint32_t sample_rate() const
     {
         return m_sample_rate;

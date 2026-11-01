@@ -30,9 +30,11 @@ class Transcriber
      * @brief Распознаёт речь в отсчётах 16 кГц моно.
      * @param samples отсчёты в диапазоне [-1.0; 1.0]
      * @param lang код языка ("ru", "en"), пустая строка — автоопределение
+     * @param prompt начальный промпт (например, часто встречающиеся английские
+     *        слова — подсказка модели выводить их латиницей)
      * @return распознанный текст
      */
-    std::string transcribe(const std::vector<float>& samples, const std::string& lang);
+    std::string transcribe(const std::vector<float>& samples, const std::string& lang, const std::string& prompt = "");
 
   private:
     whisper_context* m_ctx = nullptr;

@@ -32,7 +32,7 @@ bool run(const char* cmd, char* const argv[])
 
 /**
  * @brief Находит исполняемый файл dotool.
- * Порядок: $GOLOS_DOTOOL, бинарник из пакета (GOLOS_LIB_DIR), PATH.
+ * Порядок: $GOLOS_DOTOOL, бинарник из пакета (GOLOS_BIN_DIR), PATH.
  */
 const char* find_dotool()
 {
@@ -47,26 +47,6 @@ const char* find_dotool()
     }
 #endif
     return "dotool";
-}
-
-/**
- * @brief Печатает текст через dotool (uinput, работает везде, включая GNOME Wayland).
- * Команды протокола подаются на stdin: "type <текст>".
- * Раскладка по умолчанию для поиска клавиш: ru,us (перекрывается
- * переменными DOTOOL_XKB_LAYOUT / XKB_DEFAULT_LAYOUT).
- */
-bool type_dotool(const std::string& text)
-{
-    if (std::getenv("DOTOOL_XKB_LAYOUT") == nullptr && std::getenv("XKB_DEFAULT_LAYOUT") == nullptr) {
-        setenv("DOTOOL_XKB_LAYOUT", "ru,us", 0);
-    }
-    const std::string cmd = std::string(find_dotool()) + " 2>/dev/null";
-    FILE* pipe = popen(cmd.c_str(), "w");
-    if (!pipe) {
-        return false;
-    }
-    std::fprintf(pipe, "type %s\n", text.c_str());
-    return pclose(pipe) == 0;
 }
 
 bool type_xdotool(const std::string& text)
@@ -87,6 +67,23 @@ bool type_wtype(const std::string& text)
     return run("wtype", argv);
 }
 
+/**
+ * @brief Печатает текст через dotool: "type <текст>" на stdin.
+ */
+bool send_dotool(const std::string& lines)
+{
+    if (std::getenv("DOTOOL_XKB_LAYOUT") == nullptr && std::getenv("XKB_DEFAULT_LAYOUT") == nullptr) {
+        setenv("DOTOOL_XKB_LAYOUT", "ru,us", 0);
+    }
+    const std::string cmd = std::string(find_dotool()) + " 2>/dev/null";
+    FILE* pipe = popen(cmd.c_str(), "w");
+    if (!pipe) {
+        return false;
+    }
+    std::fputs(lines.c_str(), pipe);
+    return pclose(pipe) == 0;
+}
+
 } // namespace
 
 bool type_text(const std::string& text)
@@ -96,7 +93,7 @@ bool type_text(const std::string& text)
 
     if (forced) {
         if (std::strcmp(forced, "dotool") == 0) {
-            return type_dotool(text);
+            return send_dotool("type " + text + "\n");
         }
         if (std::strcmp(forced, "wtype") == 0) {
             return type_wtype(text);
@@ -106,11 +103,27 @@ bool type_text(const std::string& text)
         }
     }
 
-    if (type_dotool(text)) {
+    if (send_dotool("type " + text + "\n")) {
         return true;
     }
     if (wayland && type_wtype(text)) {
         return true;
     }
     return type_xdotool(text);
+}
+
+bool type_correction(std::size_t backspaces, const std::string& text)
+{
+    std::string script;
+    if (backspaces > 0) {
+        script = "key";
+        for (std::size_t i = 0; i < backspaces; ++i) {
+            script += " BackSpace";
+        }
+        script += "\n";
+    }
+    if (!text.empty()) {
+        script += "type " + text + "\n";
+    }
+    return !script.empty() && send_dotool(script);
 }

@@ -26,8 +26,10 @@ std::atomic_bool g_stop{false};
 struct Options {
     std::string model;
     std::string lang = "ru";
+    std::string prompt;
     bool no_type = false;
     bool keep_wav = false;
+    double stream_interval = 3.0;
 };
 
 void on_signal(int)
@@ -121,7 +123,45 @@ std::string self_exe()
     return n > 0 ? std::string(buf, static_cast<std::size_t>(n)) : std::string();
 }
 
-int cmd_record(const std::string& wav)
+/**
+ * @brief Потоковый вывод транскрибации: печатает только дельту, при
+ * пересмотре Whisper стирает и перепечатывает. Фильтрует «пустые»
+ * галлюцинации вида [музыка].
+ */
+class StreamTyper
+{
+  public:
+    explicit StreamTyper(const Options& opts) : m_opts(opts)
+    {
+    }
+
+    /**
+     * @brief Обработать очередной вариант полного текста фразы.
+     */
+    void update(const std::string& text)
+    {
+        std::string clean = trim(text);
+        if (clean.empty() || clean.front() == '[') {
+            return;
+        }
+        const auto [backspaces, suffix] = typing_diff(m_typed, clean);
+        if (backspaces == 0 && suffix.empty()) {
+            return;
+        }
+        if (!m_opts.no_type && !type_correction(backspaces, suffix)) {
+            log_line("ошибка потоковой печати");
+            return;
+        }
+        log_line((backspaces > 0 ? "поток (правка): " : "поток: ") + clean);
+        m_typed = clean;
+    }
+
+  private:
+    const Options& m_opts;
+    std::string m_typed;
+};
+
+int cmd_record(const std::string& wav, const Options& opts)
 {
     std::signal(SIGTERM, on_signal);
     std::signal(SIGINT, on_signal);
@@ -137,11 +177,40 @@ int cmd_record(const std::string& wav)
         f << getpid() << '\n';
     }
 
+    StreamTyper stream(opts);
+    Transcriber transcriber(opts.model);
+    const auto min_samples = static_cast<std::size_t>(recorder.sample_rate() * 2);
+    bool model_checked = false;
+    const auto interval = std::chrono::milliseconds(static_cast<int>(opts.stream_interval * 1000));
+
     while (!g_stop) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(interval);
+        if (g_stop) {
+            break;
+        }
+        const std::vector<float> samples = recorder.snapshot();
+        if (samples.size() < min_samples) {
+            continue;
+        }
+        if (!model_checked) {
+            model_checked = true;
+            if (!transcriber.valid()) {
+                std::fprintf(stderr, "golos: модель не найдена: %s\n", opts.model.c_str());
+                log_line("модель не найдена: " + opts.model);
+                break;
+            }
+        }
+        stream.update(transcriber.transcribe(samples, opts.lang, opts.prompt));
     }
 
     recorder.stop();
+
+    // финальная транскрибация с полным контекстом фразы
+    const std::vector<float> samples = recorder.snapshot();
+    if (!samples.empty() && transcriber.valid()) {
+        stream.update(transcriber.transcribe(samples, opts.lang, opts.prompt));
+    }
+
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::path(wav).parent_path(), ec);
     if (!recorder.save_wav(wav)) {
@@ -152,7 +221,7 @@ int cmd_record(const std::string& wav)
     return 0;
 }
 
-int cmd_begin()
+int cmd_begin(const Options& opts)
 {
     const pid_t existing = read_pid();
     if (pid_alive(existing)) {
@@ -167,6 +236,8 @@ int cmd_begin()
         return 1;
     }
 
+    const std::string wav = wav_path();
+    const std::string interval = std::to_string(opts.stream_interval);
     pid_t pid = fork();
     if (pid < 0) {
         std::cerr << "golos: fork не удался\n";
@@ -178,8 +249,18 @@ int cmd_begin()
         std::freopen("/dev/null", "r", stdin);
         std::freopen(log_path().c_str(), "a", stdout);
         std::freopen(log_path().c_str(), "a", stderr);
-        const std::string wav = wav_path();
-        char* const argv[] = {const_cast<char*>("golos"), const_cast<char*>("record"), const_cast<char*>(wav.c_str()),
+        char* const argv[] = {const_cast<char*>("golos"),
+                              const_cast<char*>("record"),
+                              const_cast<char*>(wav.c_str()),
+                              const_cast<char*>("--model"),
+                              const_cast<char*>(opts.model.c_str()),
+                              const_cast<char*>("--lang"),
+                              const_cast<char*>(opts.lang.c_str()),
+                              const_cast<char*>("--prompt"),
+                              const_cast<char*>(opts.prompt.c_str()),
+                              const_cast<char*>("--stream-interval"),
+                              const_cast<char*>(interval.c_str()),
+                              opts.no_type ? const_cast<char*>("--no-type") : nullptr,
                               nullptr};
         execv(exe.c_str(), argv);
         _exit(127);
@@ -196,38 +277,6 @@ int cmd_begin()
     return 1;
 }
 
-int transcribe_and_type(const Options& opts)
-{
-    std::uint32_t sample_rate = 0;
-    const std::vector<float> samples = wav_read(wav_path(), sample_rate);
-    if (samples.empty()) {
-        std::cerr << "golos: не удалось прочитать " << wav_path() << '\n';
-        return 1;
-    }
-
-    Transcriber transcriber(opts.model);
-    if (!transcriber.valid()) {
-        std::cerr << "golos: модель не найдена: " << opts.model << "\nСкачайте её: scripts/download_model.sh\n";
-        return 1;
-    }
-
-    std::string text = trim(transcriber.transcribe(samples, opts.lang));
-    if (text.empty()) {
-        std::cerr << "golos: речь не распознана\n";
-        log_line("речь не распознана");
-        return 1;
-    }
-
-    std::cout << text << '\n';
-    log_line("распознано: " + text);
-    if (!opts.no_type && !type_text(text)) {
-        std::cerr << "golos: не удалось напечатать текст, установите wtype (Wayland) или xdotool (X11)\n";
-        log_line("ошибка печати текста");
-        return 1;
-    }
-    return 0;
-}
-
 int cmd_end(const Options& opts)
 {
     const pid_t pid = read_pid();
@@ -239,18 +288,16 @@ int cmd_end(const Options& opts)
     }
 
     kill(pid, SIGTERM);
-    if (!wait_pid_gone(pid, 15000)) {
+    if (!wait_pid_gone(pid, 60000)) {
         kill(pid, SIGKILL);
         wait_pid_gone(pid, 5000);
     }
-
-    const int rc = transcribe_and_type(opts);
 
     if (!opts.keep_wav) {
         std::error_code ec;
         std::filesystem::remove(wav_path(), ec);
     }
-    return rc;
+    return 0;
 }
 
 int cmd_status()
@@ -272,7 +319,7 @@ int cmd_transcribe(const std::string& file, const Options& opts)
         std::cerr << "golos: модель не найдена: " << opts.model << '\n';
         return 1;
     }
-    std::cout << trim(transcriber.transcribe(samples, opts.lang)) << '\n';
+    std::cout << trim(transcriber.transcribe(samples, opts.lang, opts.prompt)) << '\n';
     return 0;
 }
 
@@ -282,8 +329,8 @@ void usage()
                  "Использование: golos <команда> [опции]\n"
                  "Команды:\n"
                  "  toggle       начать или остановить запись (для горячей клавиши)\n"
-                 "  begin        начать запись с микрофона\n"
-                 "  end          остановить запись, распознать и напечатать текст\n"
+                 "  begin        начать запись с микрофона (потоковая печать)\n"
+                 "  end          остановить запись, дожаться финальной транскрибации\n"
                  "  status       вывести состояние (recording/idle)\n"
                  "  record FILE  служебная: писать микрофон в FILE до SIGTERM\n"
                  "  transcribe FILE  распознать готовый WAV-файл\n"
@@ -292,6 +339,8 @@ void usage()
                      default_model_path() +
                      ")\n"
                      "  --lang CODE    язык: ru, en; пусто — автоопределение\n"
+                     "  --prompt TEXT  начальный промпт Whisper (англ. слова -> латиница)\n"
+                     "  --stream-interval SEC  интервал потоковой транскрибации (по умолчанию 3)\n"
                      "  --no-type      не печатать в активное окно, только в stdout\n"
                      "  --keep-wav     не удалять WAV после распознавания\n";
 }
@@ -316,6 +365,10 @@ int main(int argc, char** argv)
             opts.model = argv[++i];
         } else if (arg == "--lang" && i + 1 < argc) {
             opts.lang = argv[++i];
+        } else if (arg == "--prompt" && i + 1 < argc) {
+            opts.prompt = argv[++i];
+        } else if (arg == "--stream-interval" && i + 1 < argc) {
+            opts.stream_interval = std::atof(argv[++i]);
         } else if (arg == "--no-type") {
             opts.no_type = true;
         } else if (arg == "--keep-wav") {
@@ -327,11 +380,15 @@ int main(int argc, char** argv)
         }
     }
 
+    if (opts.stream_interval < 1.0) {
+        opts.stream_interval = 1.0;
+    }
+
     if (command == "toggle") {
-        return pid_alive(read_pid()) ? cmd_end(opts) : cmd_begin();
+        return pid_alive(read_pid()) ? cmd_end(opts) : cmd_begin(opts);
     }
     if (command == "begin") {
-        return cmd_begin();
+        return cmd_begin(opts);
     }
     if (command == "end") {
         return cmd_end(opts);
@@ -340,7 +397,7 @@ int main(int argc, char** argv)
         return cmd_status();
     }
     if (command == "record" && !file_arg.empty()) {
-        return cmd_record(file_arg);
+        return cmd_record(file_arg, opts);
     }
     if (command == "transcribe" && !file_arg.empty()) {
         return cmd_transcribe(file_arg, opts);
