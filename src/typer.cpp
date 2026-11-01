@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -30,12 +31,32 @@ bool run(const char* cmd, char* const argv[])
 }
 
 /**
+ * @brief Находит исполняемый файл dotool.
+ * Порядок: $GOLOS_DOTOOL, бинарник из пакета (GOLOS_LIB_DIR), PATH.
+ */
+const char* find_dotool()
+{
+    const char* env = std::getenv("GOLOS_DOTOOL");
+    if (env && *env && access(env, X_OK) == 0) {
+        return env;
+    }
+#ifdef GOLOS_LIB_DIR
+    static const std::string bundled = std::string(GOLOS_LIB_DIR) + "/dotool";
+    if (access(bundled.c_str(), X_OK) == 0) {
+        return bundled.c_str();
+    }
+#endif
+    return "dotool";
+}
+
+/**
  * @brief Печатает текст через dotool (uinput, работает везде, включая GNOME Wayland).
  * Команды протокола подаются на stdin: "type <текст>".
  */
 bool type_dotool(const std::string& text)
 {
-    FILE* pipe = popen("dotool", "w");
+    const std::string cmd = std::string(find_dotool()) + " 2>/dev/null";
+    FILE* pipe = popen(cmd.c_str(), "w");
     if (!pipe) {
         return false;
     }

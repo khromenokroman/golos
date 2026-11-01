@@ -44,8 +44,32 @@ target_link_libraries(golos_core PUBLIC whisper)
 
 add_executable(golos src/main.cpp)
 target_link_libraries(golos PRIVATE golos_core)
+target_compile_definitions(golos PRIVATE GOLOS_LIB_DIR="${CMAKE_INSTALL_FULL_LIBDIR}/golos")
 target_compile_options(golos_core PRIVATE -Wall -Wextra)
 target_compile_options(golos PRIVATE -Wall -Wextra)
+
+# dotool (uinput-typing) собирается из исходников и кладётся в пакет
+option(GOLOS_BUNDLE_DOTOOL "Собирать dotool из исходников и класть в пакет" ON)
+if(GOLOS_BUNDLE_DOTOOL)
+    find_program(GO_EXECUTABLE go)
+    if(GO_EXECUTABLE)
+        FetchContent_Declare(
+            dotool
+            URL https://git.sr.ht/~geb/dotool/archive/1.6.tar.gz
+        )
+        FetchContent_Populate(dotool)
+        add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/dotool
+            COMMAND ${GO_EXECUTABLE} build -C ${dotool_SOURCE_DIR} -o ${CMAKE_BINARY_DIR}/dotool .
+            DEPENDS ${dotool_SOURCE_DIR}/dotool.go
+            COMMENT "Сборка dotool"
+        )
+        add_custom_target(dotool_bin ALL DEPENDS ${CMAKE_BINARY_DIR}/dotool)
+        add_dependencies(golos dotool_bin)
+    else()
+        message(WARNING "go не найден, dotool не будет собран и попадёт в пакет")
+    endif()
+endif()
 
 option(GOLOS_BUILD_TESTS "Собирать тесты" ON)
 if(GOLOS_BUILD_TESTS)
@@ -74,6 +98,10 @@ include(GNUInstallDirs)
 install(TARGETS golos RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT golos)
 install(PROGRAMS scripts/download_model.sh scripts/setup_hotkey.sh
         DESTINATION ${CMAKE_INSTALL_DATADIR}/golos COMPONENT golos)
+install(FILES ${CMAKE_BINARY_DIR}/dotool
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/golos COMPONENT golos OPTIONAL)
+install(FILES cmake/80-golos-uinput.rules
+        DESTINATION lib/udev/rules.d COMPONENT golos)
 
 set(CPACK_GENERATOR DEB)
 set(CPACK_PACKAGE_VENDOR "khromenokroman")
@@ -86,4 +114,5 @@ set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_COMPONENTS_ALL golos)
 set(CPACK_DEBIAN_GOLOS_PACKAGE_NAME "golos")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA ${CMAKE_CURRENT_SOURCE_DIR}/scripts/deb/postinst)
 include(CPack)
