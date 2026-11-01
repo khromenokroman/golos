@@ -4,36 +4,47 @@
 
 Работает локально (офлайн) на базе модели Whisper через [whisper.cpp]. Языки: русский, английский и ещё ~90.
 
-## Сборка
+## Установка
+
+Готовый пакет для Debian 13 (amd64) — на [странице релизов](https://github.com/khromenokroman/golos/releases):
+
+```bash
+sudo apt install ./golos_0.1.1_amd64.deb
+/usr/share/golos/download_model.sh    # модель small (~460 МБ), или tiny|base|medium|large
+/usr/share/golos/setup_hotkey.sh      # Ctrl+Alt+Space -> golos toggle
+```
+
+Из пакета зависимости подтянутся сами: `libgomp1`, а для печати в окна —
+`wtype` (Wayland) или `xdotool` (X11).
+
+## Сборка из исходников
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
+ctest --test-dir build --output-on-failure
 ```
 
-Зависимости: cmake, g++ (C++17), git. whisper.cpp и miniaudio подтягиваются автоматически через FetchContent.
+Зависимости: cmake, g++ (C++17), git. whisper.cpp и miniaudio подтягиваются
+автоматически через FetchContent и линкуются статически.
 
-## Установка
-
-Из собранного пакета (Debian 13):
+Запуск без установки:
 
 ```bash
-sudo apt install ./golos_*-debian13.deb
+./build/golos toggle
 ```
 
-Или из исходников:
+Установка вручную:
 
 ```bash
-./scripts/download_model.sh        # модель small (~460 МБ), или tiny|base|medium|large
-sudo apt install wtype             # Wayland — печать в окна
-sudo apt install xdotool           # альтернатива для X11
+./scripts/download_model.sh
+sudo apt install wtype              # Wayland; для X11 — xdotool
 sudo install -m 755 build/golos /usr/local/bin/golos
-./scripts/setup_hotkey.sh          # Ctrl+Alt+Space -> golos toggle
+./scripts/setup_hotkey.sh
 ```
 
-Сборка пакета: `cpack -G DEB` в каталоге сборки. CI собирает пакет и
-проверяет установку в чистом debian:trixie на каждый пуш, релиз
-публикуется по тегу `v*`.
+Сборка пакета: `cpack -G DEB` в каталоге сборки, результат —
+`golos_<версия>_amd64.deb`.
 
 ## Использование
 
@@ -49,6 +60,16 @@ golos transcribe f.wav  распознать готовый файл
 golos --lang en toggle  английский (по умолчанию ru)
 ```
 
+## CI
+
+GitHub Actions (`.github/workflows/release.yml`), цель — Debian 13 (trixie):
+
+- `build`: сборка и тесты в контейнере `debian:trixie`, пакет `cpack -G DEB`,
+  выгрузка артефакта `golos-debian13`
+- `install`: установка пакета в чистом `debian:trixie`, проверка `golos status`, удаление
+- `release` (только тег `v*`): проверка совпадения тега и версии в
+  CMakeLists.txt, публикация .deb в релизах GitHub
+
 ## Как это устроено
 
 1. `golos begin` форкает фоновый процесс записи (`golos record`), который пишет микрофон 16 кГц в WAV. PID хранится в `$XDG_RUNTIME_DIR/golos.pid`.
@@ -56,5 +77,10 @@ golos --lang en toggle  английский (по умолчанию ru)
 3. Горячая клавиша — штатная пользовательская комбинация GNOME, срабатывает на любой раскладке. Постоянного демона нет: состояние живёт в pid-файле, модель грузится только на время распознавания.
 
 Лог записи: `~/.local/state/golos/golos.log`. Модель: `~/.local/share/golos/ggml-small.bin`.
+
+## Тесты
+
+googletest, цель `golos_tests`: roundtrip WAV, ограничение амплитуды,
+чтение битых файлов, граничные случаи `trim`.
 
 [whisper.cpp]: https://github.com/ggerganov/whisper.cpp
